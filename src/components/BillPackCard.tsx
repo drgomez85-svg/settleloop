@@ -10,7 +10,7 @@ interface BillPackCardProps {
 }
 
 export function BillPackCard({ pack, onEdit, onAddBills }: BillPackCardProps) {
-  const { getRulesForBillPack, calculateMonthlyTotal, updateBillPack, deleteBillPack } = useAutoSplitStore();
+  const { getRulesForBillPack, calculateMonthlyTotal, deleteBillPack } = useAutoSplitStore();
   const { getMission } = useMissionStore();
   const { accounts } = useBankingStore();
   

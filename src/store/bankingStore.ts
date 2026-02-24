@@ -425,7 +425,7 @@ export const useBankingStore = create<BankingStore>((set, get) => ({
       import('./autosplitStore').then(({ useAutoSplitStore }) => {
         const { matchTransaction, createExpenseFromMatch } = useAutoSplitStore.getState();
         const matchingRule = matchTransaction(newTransaction);
-        if (matchingRule && matchingRule.autoCreateExpense) {
+        if (matchingRule && matchingRule.actions.autoCreateExpense) {
           createExpenseFromMatch(matchingRule, newTransaction);
         }
       });

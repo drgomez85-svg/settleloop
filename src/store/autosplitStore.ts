@@ -78,6 +78,10 @@ export const useAutoSplitStore = create<AutoSplitStore>((set, get) => ({
         matchCount: 0,
         status: ruleData.status || 'active',
         includeInMonthlyRequest: ruleData.includeInMonthlyRequest !== undefined ? ruleData.includeInMonthlyRequest : true,
+        actions: ruleData.actions || {
+          autoCreateExpense: true,
+          autoSendRequests: false,
+        },
       };
     });
     set((state) => ({
@@ -259,7 +263,7 @@ export const useAutoSplitStore = create<AutoSplitStore>((set, get) => ({
     
     for (const transaction of recentTransactions) {
       const matchingRule = get().matchTransaction(transaction);
-      if (matchingRule && matchingRule.autoCreateExpense) {
+      if (matchingRule && matchingRule.actions.autoCreateExpense) {
         get().createExpenseFromMatch(matchingRule, transaction);
       }
     }
@@ -436,12 +440,13 @@ export const useAutoSplitStore = create<AutoSplitStore>((set, get) => ({
             requestMoney('chequing-1', member.name, amount, `Monthly bills - ${pack.name}`);
             
             // Create notification
-            const { useNotificationStore } = require('./notificationStore');
-            useNotificationStore.getState().addNotification({
-              type: 'info',
-              title: 'Monthly Request Sent',
-              message: `Requested $${amount.toFixed(2)} from ${member.name} for ${pack.name}`,
-              amount: amount,
+            import('./notificationStore').then(({ useNotificationStore }) => {
+              useNotificationStore.getState().addNotification({
+                type: 'info',
+                title: 'Monthly Request Sent',
+                message: `Requested $${amount.toFixed(2)} from ${member.name} for ${pack.name}`,
+                amount: amount,
+              });
             });
           }
         }

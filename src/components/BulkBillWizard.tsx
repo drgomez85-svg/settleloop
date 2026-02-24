@@ -162,9 +162,12 @@ export function BulkBillWizard({ missionId, billPackId, onComplete, onCancel }: 
       splitConfig: {},
       recurrence: splitConfig.recurrence,
       expectedDayRange: { start: 1, end: 5 },
-      autoCreateExpense: true,
+      actions: {
+        autoCreateExpense: true,
+        autoSendRequests: false,
+      },
       includeInMonthlyRequest: true,
-      status: 'active' as RuleStatus,
+      status: 'active' as 'active' | 'paused',
     }));
 
     createRulesBulk(rulesToCreate);

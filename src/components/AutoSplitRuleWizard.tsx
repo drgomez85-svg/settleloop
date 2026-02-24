@@ -82,8 +82,10 @@ export function AutoSplitRuleWizard({ missionId, onComplete, onCancel, editingRu
     recurrence: editingRule?.recurrence || 'monthly',
     expectedDayOfMonth: editingRule?.expectedDayOfMonth,
     expectedDayRange: editingRule?.expectedDayRange || { start: 1, end: 5 },
-    autoCreateExpense: editingRule?.autoCreateExpense !== undefined ? editingRule.autoCreateExpense : true,
-    autoSendRequest: editingRule?.autoSendRequest || false,
+    actions: {
+      autoCreateExpense: editingRule?.actions?.autoCreateExpense !== undefined ? editingRule.actions.autoCreateExpense : true,
+      autoSendRequests: editingRule?.actions?.autoSendRequests || false,
+    },
     status: editingRule?.status || 'active',
   });
 
@@ -630,8 +632,8 @@ export function AutoSplitRuleWizard({ missionId, onComplete, onCancel, editingRu
           <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)', cursor: 'pointer' }}>
             <input
               type="checkbox"
-              checked={ruleData.autoCreateExpense}
-              onChange={(e) => setRuleData({ ...ruleData, autoCreateExpense: e.target.checked })}
+              checked={ruleData.actions?.autoCreateExpense ?? true}
+              onChange={(e) => setRuleData({ ...ruleData, actions: { autoCreateExpense: e.target.checked, autoSendRequests: ruleData.actions?.autoSendRequests ?? false } })}
             />
             <span>Auto-create ledger expense when matched</span>
           </label>
@@ -639,8 +641,8 @@ export function AutoSplitRuleWizard({ missionId, onComplete, onCancel, editingRu
           <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)', cursor: 'pointer' }}>
             <input
               type="checkbox"
-              checked={ruleData.autoSendRequest}
-              onChange={(e) => setRuleData({ ...ruleData, autoSendRequest: e.target.checked })}
+              checked={ruleData.actions?.autoSendRequests ?? false}
+              onChange={(e) => setRuleData({ ...ruleData, actions: { autoCreateExpense: ruleData.actions?.autoCreateExpense ?? true, autoSendRequests: e.target.checked } })}
             />
             <span>Auto-send request to other participants</span>
           </label>

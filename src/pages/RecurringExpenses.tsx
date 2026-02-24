@@ -10,9 +10,8 @@ import { BillPackCard } from '../components/BillPackCard';
 
 export function RecurringExpenses() {
   const navigate = useNavigate();
-  const { rules, getRulesForMission, billPacks, getBillPacksForMission, calculateMonthlyTotal } = useAutoSplitStore();
+  const { rules, billPacks, getBillPacksForMission } = useAutoSplitStore();
   const { missions } = useMissionStore();
-  const { accounts } = useBankingStore();
   const [showWizard, setShowWizard] = useState(false);
   const [showBulkWizard, setShowBulkWizard] = useState(false);
   const [showMissionSelector, setShowMissionSelector] = useState(false);

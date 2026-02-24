@@ -124,7 +124,10 @@ export interface AutoSplitRule {
   expectedDayRange?: { start: number; end: number }; // e.g., 1-5 for "around the 1st"
   
   // Behavior
-  autoCreateExpense: boolean; // Auto-create expense when matched
+  actions: {
+    autoCreateExpense: boolean; // Auto-create expense when matched
+    autoSendRequests: boolean; // Auto-send requests to other participants
+  };
   includeInMonthlyRequest: boolean; // Include in monthly consolidated request (if part of pack)
   
   // Status
