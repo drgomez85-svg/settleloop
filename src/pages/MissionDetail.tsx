@@ -10,6 +10,11 @@ import { Expense, Member } from '../types';
 import { calculateBalances } from '../utils/balanceEngine';
 import { LoadingScreen } from '../components/LoadingScreen';
 import { useAutoSplitStore } from '../store/autosplitStore';
+import { ShareLedger } from '../components/ShareLedger';
+import { AutoSplitRuleCard } from '../components/AutoSplitRuleCard';
+import { AutoSplitRuleWizard } from '../components/AutoSplitRuleWizard';
+import { BulkBillWizard } from '../components/BulkBillWizard';
+import { BillPackCard } from '../components/BillPackCard';
 
 export function MissionDetail() {
   const { id } = useParams<{ id: string }>();
@@ -31,6 +36,7 @@ export function MissionDetail() {
   const mission = id ? getMission(id) : null;
   const [showAddMember, setShowAddMember] = useState(false);
   const [newMemberName, setNewMemberName] = useState('');
+  const [newMemberEmail, setNewMemberEmail] = useState('');
   const [showAddMultipleMembers, setShowAddMultipleMembers] = useState(false);
   const [multipleMemberNames, setMultipleMemberNames] = useState('');
   const [showExpenseForm, setShowExpenseForm] = useState(false);
@@ -39,9 +45,15 @@ export function MissionDetail() {
   const [editingMemberName, setEditingMemberName] = useState('');
   const [showLoading, setShowLoading] = useState(false);
   const [showFromContacts, setShowFromContacts] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [showRuleWizard, setShowRuleWizard] = useState(false);
+  const [showBulkWizard, setShowBulkWizard] = useState(false);
+  const [editingRule, setEditingRule] = useState<any>(null);
+  const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
   
-  const { getRulesForMission, checkTransactions, deleteRulesForMission } = useAutoSplitStore();
-  const autoSplitRules = getRulesForMission(mission?.id || '');
+  const { getRulesForMission, checkTransactions, deleteRulesForMission, billPacks, getBillPacksForMission } = useAutoSplitStore();
+  const autoSplitRules = mission ? getRulesForMission(mission.id) : [];
+  const missionBillPacks = mission ? getBillPacksForMission(mission.id) : [];
   
   // Check for new transactions when component mounts or when transactions change
   useEffect(() => {
@@ -72,9 +84,16 @@ export function MissionDetail() {
   const totalOwingForExport = currentUserForExport && currentUserForExport.balance < 0 ? Math.abs(currentUserForExport.balance) : 0;
 
   const handleAddMember = () => {
-    if (newMemberName.trim()) {
-      addMember(mission.id, newMemberName.trim());
+    if (newMemberName.trim() && newMemberEmail.trim()) {
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(newMemberEmail.trim())) {
+        alert('Please enter a valid email address');
+        return;
+      }
+      addMember(mission.id, newMemberName.trim(), newMemberEmail.trim());
       setNewMemberName('');
+      setNewMemberEmail('');
       setShowAddMember(false);
     }
   };
@@ -87,9 +106,8 @@ export function MissionDetail() {
         .map(name => name.trim())
         .filter(name => name.length > 0);
       
-      names.forEach(name => {
-        addMember(mission.id, name);
-      });
+      // Multiple members feature disabled - email required for each
+      // This code path should not be reached due to handleAddMultipleMembers update
       
       setMultipleMemberNames('');
       setShowAddMultipleMembers(false);
@@ -103,7 +121,22 @@ export function MissionDetail() {
     );
     
     if (!existingMember) {
-      addMember(mission.id, contactName);
+      // Find contact email from banking store
+      const contact = contacts.find(c => c.name === contactName);
+      if (contact && contact.email) {
+        addMember(mission.id, contactName, contact.email);
+      } else {
+        // If no email in contact, prompt for email
+        const email = prompt(`Please enter email address for ${contactName}:`);
+        if (email && email.trim()) {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (emailRegex.test(email.trim())) {
+            addMember(mission.id, contactName, email.trim());
+          } else {
+            alert('Please enter a valid email address');
+          }
+        }
+      }
     }
     setShowFromContacts(false);
   };
@@ -195,45 +228,168 @@ export function MissionDetail() {
         <button 
           className="btn btn-secondary" 
           onClick={() => {
-            // Export/share ledger details
-            const exportData = {
-              title: mission.title,
-              members: mission.members.map(m => ({
-                name: m.name,
-                balance: m.balance,
-              })),
-              expenses: mission.expenses.map(e => ({
-                title: e.title,
-                amount: e.amount,
-                paidBy: membersWithBalances.find(m => m.id === e.paidBy)?.name || 'Unknown',
-                splits: e.splits.map(s => ({
-                  member: membersWithBalances.find(m => m.id === s.memberId)?.name || 'Unknown',
-                  amount: s.amount,
-                })),
-              })),
-              summary: {
-                totalExpenses: mission.expenses.reduce((sum, e) => sum + e.amount, 0),
-                totalOwed: totalOwedForExport,
-                totalOwing: totalOwingForExport,
-              },
-              settlements: summary.transfers.map(t => ({
-                from: membersWithBalances.find(m => m.id === t.from)?.name || 'Unknown',
-                to: membersWithBalances.find(m => m.id === t.to)?.name || 'Unknown',
-                amount: t.amount,
-              })),
+            // Ensure share token exists
+            if (mission && !mission.shareToken) {
+              const { generateShareToken } = useMissionStore.getState();
+              generateShareToken(mission.id);
+            }
+            setShowShareModal(true);
+          }}
+          style={{ padding: 'var(--spacing-xs)', marginRight: 'var(--spacing-xs)' }}
+          title="Share Ledger"
+        >
+          🔗
+        </button>
+        <button 
+          className="btn btn-secondary" 
+          onClick={() => {
+            // Export/share group details as CSV (Excel-friendly)
+            const escapeCsv = (value: unknown) => {
+              const s = value === null || value === undefined ? '' : String(value);
+              const needsQuotes = /[",\n\r]/.test(s);
+              const escaped = s.replace(/"/g, '""');
+              return needsQuotes ? `"${escaped}"` : escaped;
             };
-            
-            // Copy to clipboard as JSON
-            const jsonString = JSON.stringify(exportData, null, 2);
-            navigator.clipboard.writeText(jsonString).then(() => {
-              alert('Ledger details copied to clipboard!');
-            }).catch(() => {
-              // Fallback: show in prompt
-              prompt('Ledger Details (copy this):', jsonString);
+
+            const header = [
+              'RecordType',
+              'GroupTitle',
+              'Member',
+              'MemberEmail',
+              'Balance',
+              'ExpenseTitle',
+              'ExpenseAmount',
+              'PaidBy',
+              'SplitType',
+              'Splits',
+              'ExpenseCreatedAt',
+              'ImportedFrom',
+              'SourceAccountId',
+              'SettlementFrom',
+              'SettlementTo',
+              'SettlementAmount',
+            ];
+
+            const rows: string[][] = [];
+
+            // Group meta row
+            rows.push([
+              'GROUP',
+              mission.title,
+              '',
+              '',
+              '',
+              '',
+              '',
+              '',
+              '',
+              '',
+              '',
+              '',
+              '',
+              '',
+              '',
+              '',
+            ]);
+
+            // Member balances
+            membersWithBalances.forEach((m) => {
+              rows.push([
+                'MEMBER',
+                mission.title,
+                m.name,
+                (m as any).email || '',
+                m.balance.toFixed(2),
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+              ]);
             });
+
+            // Expenses
+            mission.expenses.forEach((e) => {
+              const paidByName = membersWithBalances.find((m) => m.id === e.paidBy)?.name || 'Unknown';
+              const splits = e.splits
+                .map((s) => {
+                  const name = membersWithBalances.find((m) => m.id === s.memberId)?.name || 'Unknown';
+                  return `${name}:${s.amount.toFixed(2)}`;
+                })
+                .join('; ');
+
+              rows.push([
+                'EXPENSE',
+                mission.title,
+                '',
+                '',
+                '',
+                e.title,
+                e.amount.toFixed(2),
+                paidByName,
+                e.splitType,
+                splits,
+                e.createdAt,
+                e.importedFrom || '',
+                e.sourceAccountId || '',
+                '',
+                '',
+                '',
+              ]);
+            });
+
+            // Settlement recommendations
+            summary.transfers.forEach((t) => {
+              const fromName = membersWithBalances.find((m) => m.id === t.from)?.name || 'Unknown';
+              const toName = membersWithBalances.find((m) => m.id === t.to)?.name || 'Unknown';
+              rows.push([
+                'SETTLEMENT',
+                mission.title,
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                fromName,
+                toName,
+                t.amount.toFixed(2),
+              ]);
+            });
+
+            const csv = ['\uFEFF' + header.map(escapeCsv).join(','), ...rows.map((r) => r.map(escapeCsv).join(','))].join('\n');
+
+            const safeTitle = (mission.title || 'shared-group')
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, '-')
+              .replace(/(^-|-$)/g, '');
+            const fileName = `${safeTitle || 'shared-group'}-export.csv`;
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            alert('Group exported as CSV.');
           }}
           style={{ padding: 'var(--spacing-xs)' }}
-          title="Export/Share Ledger"
+          title="Export/Share Group (CSV)"
         >
           📤
         </button>
@@ -311,7 +467,7 @@ export function MissionDetail() {
         {showAddMember && (
           <div className="card" style={{ marginBottom: 'var(--spacing-md)' }}>
             <h3 style={{ marginBottom: 'var(--spacing-md)', fontWeight: '500', fontSize: '0.875rem' }}>Add Member</h3>
-            <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
               <input
                 className="input"
                 type="text"
@@ -320,20 +476,35 @@ export function MissionDetail() {
                 onChange={(e) => setNewMemberName(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleAddMember()}
                 autoFocus
-                style={{ flex: 1 }}
               />
-              <button className="btn btn-primary" onClick={handleAddMember}>
-                Add
-              </button>
-              <button
-                className="btn btn-secondary"
-                onClick={() => {
-                  setShowAddMember(false);
-                  setNewMemberName('');
-                }}
-              >
-                Cancel
-              </button>
+              <input
+                className="input"
+                type="email"
+                placeholder="Enter email address"
+                value={newMemberEmail}
+                onChange={(e) => setNewMemberEmail(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleAddMember()}
+              />
+              <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
+                <button 
+                  className="btn btn-primary" 
+                  onClick={handleAddMember}
+                  disabled={!newMemberName.trim() || !newMemberEmail.trim()}
+                  style={{ flex: 1 }}
+                >
+                  Add
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setShowAddMember(false);
+                    setNewMemberName('');
+                    setNewMemberEmail('');
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -487,6 +658,10 @@ export function MissionDetail() {
               member={member}
               onEdit={mission.status === 'active' ? handleEditMember : undefined}
               onRemove={mission.status === 'active' ? (id) => removeMember(mission.id, id) : undefined}
+              onRemind={mission.status === 'active' ? (memberId: string) => {
+                const { sendReminder } = useMissionStore.getState();
+                sendReminder(mission.id, memberId);
+              } : undefined}
             />
           ))}
         </div>
@@ -567,62 +742,199 @@ export function MissionDetail() {
         </button>
       )}
 
-      {/* AutoSplit Rules Quick Link */}
+      {/* Recurring Expenses Section */}
       {mission.status === 'active' && (
         <div style={{ marginBottom: 'var(--spacing-xl)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
             <h2 style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-text-light)', textTransform: 'uppercase' }}>
-              RECURRING EXPENSES ({autoSplitRules.length})
+              RECURRING EXPENSES
             </h2>
-            <button
-              className="btn btn-secondary"
-              onClick={() => navigate('/recurring-expenses')}
-              style={{ fontSize: '0.875rem', padding: 'var(--spacing-xs) var(--spacing-sm)' }}
-            >
-              Manage Rules →
-            </button>
-          </div>
-
-          {autoSplitRules.length === 0 ? (
-            <div className="card" style={{ textAlign: 'center', padding: 'var(--spacing-lg)' }}>
-              <p style={{ color: 'var(--color-text-light)', marginBottom: 'var(--spacing-md)' }}>
-                No recurring expense rules for this ledger yet.
-              </p>
+            <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => {
+                  setShowBulkWizard(true);
+                  setEditingRule(null);
+                }}
+                style={{ fontSize: '0.875rem', padding: 'var(--spacing-xs) var(--spacing-sm)' }}
+              >
+                + Multiple Bills
+              </button>
               <button
                 className="btn btn-primary"
-                onClick={() => navigate('/recurring-expenses')}
+                onClick={() => {
+                  setShowRuleWizard(true);
+                  setEditingRule(null);
+                }}
+                style={{ fontSize: '0.875rem', padding: 'var(--spacing-xs) var(--spacing-sm)' }}
               >
-                Create Recurring Expense Rule
+                + Add Rule
               </button>
             </div>
+          </div>
+
+          {/* Bill Packs */}
+          {missionBillPacks.length > 0 && (
+            <div style={{ marginBottom: 'var(--spacing-md)' }}>
+              {missionBillPacks.map((pack) => (
+                <BillPackCard
+                  key={pack.id}
+                  pack={pack}
+                  onEdit={() => {
+                    setSelectedPackId(pack.id);
+                    setShowBulkWizard(true);
+                  }}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Rules List */}
+          {autoSplitRules.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+              {autoSplitRules.map((rule) => (
+                <AutoSplitRuleCard
+                  key={rule.id}
+                  rule={rule}
+                  onEdit={() => {
+                    setEditingRule(rule);
+                    setShowRuleWizard(true);
+                  }}
+                />
+              ))}
+            </div>
           ) : (
-            <div className="card" style={{ padding: 'var(--spacing-md)' }}>
+            <div className="card" style={{ textAlign: 'center', padding: 'var(--spacing-lg)' }}>
               <p style={{ color: 'var(--color-text-light)', marginBottom: 'var(--spacing-md)' }}>
-                {autoSplitRules.length} active rule{autoSplitRules.length !== 1 ? 's' : ''} for this shared ledger.
+                No recurring expense rules for this group yet.
               </p>
               <button
                 className="btn btn-primary"
-                onClick={() => navigate('/recurring-expenses')}
+                onClick={() => {
+                  setShowRuleWizard(true);
+                  setEditingRule(null);
+                }}
                 style={{ width: '100%' }}
               >
-                View & Manage Rules
+                Create Recurring Expense Rule
               </button>
             </div>
           )}
         </div>
       )}
 
-      {/* Ledger Section */}
+      {/* Rule Wizard Modal */}
+      {showRuleWizard && mission && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 'var(--spacing-lg)',
+          }}
+          onClick={() => {
+            setShowRuleWizard(false);
+            setEditingRule(null);
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--color-card)',
+              borderRadius: 'var(--radius-lg)',
+              maxWidth: '600px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <AutoSplitRuleWizard
+              missionId={mission.id}
+              onComplete={() => {
+                setShowRuleWizard(false);
+                setEditingRule(null);
+              }}
+              onCancel={() => {
+                setShowRuleWizard(false);
+                setEditingRule(null);
+              }}
+              editingRule={editingRule}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Bill Wizard Modal */}
+      {showBulkWizard && mission && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 'var(--spacing-lg)',
+          }}
+          onClick={() => {
+            setShowBulkWizard(false);
+            setSelectedPackId(null);
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--color-card)',
+              borderRadius: 'var(--radius-lg)',
+              maxWidth: '600px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <BulkBillWizard
+              missionId={mission.id}
+              billPackId={selectedPackId || undefined}
+              onComplete={() => {
+                setShowBulkWizard(false);
+                setSelectedPackId(null);
+              }}
+              onCancel={() => {
+                setShowBulkWizard(false);
+                setSelectedPackId(null);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* One Time Expenses Section */}
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
           <h2 style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-text-light)', textTransform: 'uppercase' }}>
-            LEDGER
+            ONE TIME EXPENSES
           </h2>
           {mission.status === 'active' && (
             <button
-              className="btn btn-secondary"
+              className="btn btn-primary"
               onClick={() => setShowExpenseForm(true)}
-              style={{ fontSize: '0.875rem', padding: 'var(--spacing-xs) var(--spacing-sm)' }}
+              style={{ 
+                fontSize: '1rem', 
+                padding: 'var(--spacing-md) var(--spacing-lg)',
+                fontWeight: '600',
+                boxShadow: '0 4px 12px rgba(20, 184, 166, 0.3)',
+              }}
             >
               + Add Expense
             </button>
@@ -634,19 +946,67 @@ export function MissionDetail() {
             <p style={{ color: 'var(--color-text-light)' }}>No expenses yet. Add your first expense to get started.</p>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
-            {mission.expenses.map((expense) => (
-              <ExpenseCard
-                key={expense.id}
-                expense={expense}
-                members={membersWithBalances}
-                onEdit={mission.status === 'active' ? handleEditExpense : undefined}
-                onRemove={mission.status === 'active' ? (id) => removeExpense(mission.id, id) : undefined}
-              />
-            ))}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
+            {Object.entries(
+              mission.expenses.reduce<Record<string, typeof mission.expenses>>((groups, exp) => {
+                const date = exp.createdAt ? new Date(exp.createdAt) : null;
+                const key = date ? date.toISOString().split('T')[0] : 'Unknown';
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(exp);
+                return groups;
+              }, {})
+            )
+              .sort(([a], [b]) => (a < b ? 1 : -1)) // newest date first
+              .map(([dateKey, expensesForDay]) => {
+                const dateObj = dateKey !== 'Unknown' ? new Date(dateKey) : null;
+                const label =
+                  dateObj && !isNaN(dateObj.getTime())
+                    ? dateObj.toLocaleDateString(undefined, {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                      })
+                    : 'Other';
+                return (
+                  <div key={dateKey}>
+                    <div
+                      style={{
+                        fontSize: '0.875rem',
+                        fontWeight: '500',
+                        color: 'var(--color-text-light)',
+                        marginBottom: 'var(--spacing-sm)',
+                      }}
+                    >
+                      {label}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
+                      {expensesForDay
+                        .slice()
+                        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+                        .map((expense) => (
+                          <ExpenseCard
+                            key={expense.id}
+                            expense={expense}
+                            members={membersWithBalances}
+                            onEdit={mission.status === 'active' ? handleEditExpense : undefined}
+                            onRemove={mission.status === 'active' ? (id) => removeExpense(mission.id, id) : undefined}
+                          />
+                        ))}
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         )}
       </div>
+
+      {/* Share Modal */}
+      {showShareModal && mission && (
+        <ShareLedger
+          mission={mission}
+          onClose={() => setShowShareModal(false)}
+        />
+      )}
     </div>
   );
 }

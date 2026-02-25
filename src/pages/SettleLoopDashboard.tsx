@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useMissionStore } from '../store/missionStore';
-import { useAuthStore } from '../store/authStore';
+import { useAuthStore } from '../store/authStore.ts';
 import { NotificationCenter } from '../components/NotificationCenter';
 import { calculateBalances } from '../utils/balanceEngine';
 import { getCreditors, getDebtors } from '../utils/settlementOptimizer';
@@ -86,20 +86,13 @@ export function SettleLoopDashboard() {
       </div>
 
       {/* Action Buttons */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-xl)' }}>
+      <div style={{ marginBottom: 'var(--spacing-xl)' }}>
         <button
           className="btn btn-primary"
           onClick={() => navigate('/mission/new')}
-          style={{ padding: 'var(--spacing-md)', fontSize: '1rem', fontWeight: '600' }}
+          style={{ width: '100%', padding: 'var(--spacing-md)', fontSize: '1rem', fontWeight: '600' }}
         >
-          ⚡ New Shared Ledger
-        </button>
-        <button
-          className="btn btn-secondary"
-          onClick={() => navigate('/recurring-expenses')}
-          style={{ padding: 'var(--spacing-md)', fontSize: '1rem' }}
-        >
-          🔄 Recurring Expenses
+          ⚡ Create Shared Group
         </button>
       </div>
 
@@ -107,7 +100,7 @@ export function SettleLoopDashboard() {
       {activeMissions.length > 0 && (
         <div style={{ marginBottom: 'var(--spacing-xl)' }}>
           <h2 style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-text-light)', textTransform: 'uppercase', marginBottom: 'var(--spacing-md)' }}>
-            ACTIVE SHARED LEDGERS
+            ACTIVE SHARED GROUPS
           </h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
             {activeMissions.map((mission) => {
@@ -207,13 +200,10 @@ export function SettleLoopDashboard() {
       {missions.length === 0 && (
         <div className="card" style={{ textAlign: 'center', padding: 'var(--spacing-2xl)' }}>
           <div style={{ fontSize: '3rem', marginBottom: 'var(--spacing-md)' }}>📊</div>
-          <h3 style={{ marginBottom: 'var(--spacing-sm)', fontWeight: '500' }}>No shared ledgers yet</h3>
+          <h3 style={{ marginBottom: 'var(--spacing-sm)', fontWeight: '500' }}>No shared groups yet</h3>
           <p style={{ color: 'var(--color-text-light)', marginBottom: 'var(--spacing-lg)' }}>
-            Create your first shared ledger to start tracking shared expenses
+            Create your first shared group to start tracking shared expenses
           </p>
-          <button className="btn btn-primary" onClick={() => navigate('/mission/new')}>
-            Create Shared Ledger
-          </button>
         </div>
       )}
     </div>

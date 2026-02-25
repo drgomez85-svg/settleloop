@@ -168,7 +168,7 @@ export function BankingHome() {
           <div style={{ fontSize: '0.875rem' }}>Pay Bill</div>
         </button>
         <button
-          className="btn btn-primary"
+          className="btn btn-secondary"
           style={{
             padding: 'var(--spacing-md)',
             display: 'flex',
@@ -176,9 +176,19 @@ export function BankingHome() {
             alignItems: 'center',
             gap: 'var(--spacing-xs)',
             borderRadius: 'var(--radius-lg)',
+            position: 'relative',
+            border: '2px solid var(--color-primary)',
           }}
           onClick={() => navigate('/settleloop')}
         >
+          <span style={{
+            position: 'absolute',
+            top: '8px',
+            right: '8px',
+            fontSize: '0.875rem',
+            color: 'var(--color-primary)',
+            fontWeight: '700',
+          }}>⭐</span>
           <div style={{ fontSize: '1.5rem' }}>👥</div>
           <div style={{ fontSize: '0.875rem' }}>Split Expense</div>
         </button>

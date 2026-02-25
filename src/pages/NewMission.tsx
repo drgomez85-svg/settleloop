@@ -26,7 +26,6 @@ export function NewMission() {
   const { userName } = useAuthStore();
   const [selectedIcon, setSelectedIcon] = useState(MISSION_ICONS[0].emoji);
   const [missionName, setMissionName] = useState('');
-  const [deadline, setDeadline] = useState('');
   
   // Create current user member object
   const currentUserMember = userName 
@@ -36,7 +35,8 @@ export function NewMission() {
   const [selectedMembers, setSelectedMembers] = useState<string[]>(['current-user']);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [newMemberName, setNewMemberName] = useState('');
-  const [customMembers, setCustomMembers] = useState<Array<{ id: string; name: string }>>([]);
+  const [newMemberEmail, setNewMemberEmail] = useState('');
+  const [customMembers, setCustomMembers] = useState<Array<{ id: string; name: string; email?: string }>>([]);
 
   const handleMemberToggle = (memberId: string) => {
     // Now the current user can be toggled like any other member
@@ -48,23 +48,37 @@ export function NewMission() {
   };
 
   const handleAddMember = () => {
-    if (newMemberName.trim()) {
+    if (newMemberName.trim() && newMemberEmail.trim()) {
       const trimmedName = newMemberName.trim();
+      const trimmedEmail = newMemberEmail.trim();
+      
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(trimmedEmail)) {
+        alert('Please enter a valid email address');
+        return;
+      }
+      
       // Check if member already exists (including current user)
       const allMembers = [currentUserMember, ...DEMO_MEMBERS, ...customMembers];
       const exists = allMembers.some(m => 
-        m.name.toLowerCase() === trimmedName.toLowerCase()
+        m.name.toLowerCase() === trimmedName.toLowerCase() ||
+        ('email' in m && typeof m.email === 'string' && m.email.toLowerCase() === trimmedEmail.toLowerCase())
       );
       
       if (!exists) {
         const newMember = {
           id: `custom-${Date.now()}`,
           name: trimmedName,
+          email: trimmedEmail,
         };
         setCustomMembers([...customMembers, newMember]);
         setSelectedMembers([...selectedMembers, newMember.id]);
         setNewMemberName('');
+        setNewMemberEmail('');
         setShowAddMemberModal(false);
+      } else {
+        alert('A member with this name or email already exists');
       }
     }
   };
@@ -80,7 +94,12 @@ export function NewMission() {
       selectedMembers.forEach((memberId) => {
         const member = allMembers.find((m) => m.id === memberId);
         if (member) {
-          addMember(missionId, member.name);
+          // For current user and demo members, use a placeholder email
+          // In a real app, this would come from the user's profile
+          const email = 'email' in member && typeof member.email === 'string' 
+            ? member.email 
+            : `${member.name.toLowerCase().replace(/\s+/g, '.')}@example.com`;
+          addMember(missionId, member.name, email);
         }
       });
 
@@ -94,7 +113,7 @@ export function NewMission() {
         <button className="btn btn-secondary" onClick={() => navigate('/settleloop')}>
           ←
         </button>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: '600' }}>New Shared Ledger</h1>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: '600' }}>New Shared Group</h1>
       </div>
 
       {/* Icon Selection */}
@@ -127,7 +146,7 @@ export function NewMission() {
 
       {/* Mission Name */}
       <div style={{ marginBottom: 'var(--spacing-xl)' }}>
-        <label style={{ display: 'block', marginBottom: 'var(--spacing-sm)', fontWeight: '500' }}>Shared Ledger Name</label>
+        <label style={{ display: 'block', marginBottom: 'var(--spacing-sm)', fontWeight: '500' }}>Group Name</label>
         <input
           className="input"
           type="text"
@@ -135,23 +154,6 @@ export function NewMission() {
           value={missionName}
           onChange={(e) => setMissionName(e.target.value)}
         />
-      </div>
-
-      {/* Deadline */}
-      <div style={{ marginBottom: 'var(--spacing-xl)' }}>
-        <label style={{ display: 'block', marginBottom: 'var(--spacing-sm)', fontWeight: '500' }}>Deadline</label>
-        <div style={{ position: 'relative' }}>
-          <input
-            className="input"
-            type="date"
-            value={deadline}
-            onChange={(e) => setDeadline(e.target.value)}
-            style={{ paddingRight: 'var(--spacing-xl)' }}
-          />
-          <div style={{ position: 'absolute', right: 'var(--spacing-md)', top: '50%', transform: 'translateY(-50%)' }}>
-            📅
-          </div>
-        </div>
       </div>
 
       {/* Members */}
@@ -287,7 +289,7 @@ export function NewMission() {
         disabled={!missionName.trim()}
         style={{ width: '100%', padding: 'var(--spacing-md)', fontSize: '1rem', fontWeight: '600' }}
       >
-        Create Shared Ledger
+        Create Shared Group
       </button>
 
       {/* Add Member Modal */}
@@ -329,11 +331,45 @@ export function NewMission() {
                 Add Person
               </h2>
               <p style={{ fontSize: '0.875rem', color: 'var(--color-text-light)' }}>
-                Enter the name of the person you want to add to this shared ledger
+                Enter the name and email of the person you want to add to this group
               </p>
             </div>
 
-            {/* Input Field */}
+            {/* Input Fields */}
+            <div style={{ marginBottom: 'var(--spacing-md)' }}>
+              <label
+                style={{
+                  display: 'block',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  marginBottom: 'var(--spacing-sm)',
+                  color: 'var(--color-text)',
+                }}
+              >
+                Name *
+              </label>
+              <input
+                className="input"
+                type="text"
+                placeholder="Enter person's name"
+                value={newMemberName}
+                onChange={(e) => setNewMemberName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newMemberName.trim()) {
+                    handleAddMember();
+                  } else if (e.key === 'Escape') {
+                    setShowAddMemberModal(false);
+                    setNewMemberName('');
+                    setNewMemberEmail('');
+                  }
+                }}
+                autoFocus
+                style={{
+                  fontSize: '1rem',
+                  padding: 'var(--spacing-md)',
+                }}
+              />
+            </div>
             <div style={{ marginBottom: 'var(--spacing-lg)' }}>
               <label
                 style={{
@@ -344,27 +380,24 @@ export function NewMission() {
                   color: 'var(--color-text)',
                 }}
               >
-                Name
+                Email *
               </label>
               <input
                 className="input"
-                type="text"
-                placeholder="Enter person's name"
-                value={newMemberName}
-                onChange={(e) => setNewMemberName(e.target.value)}
+                type="email"
+                placeholder="person@example.com"
+                value={newMemberEmail}
+                onChange={(e) => setNewMemberEmail(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
+                  if (e.key === 'Enter' && newMemberName.trim() && newMemberEmail.trim()) {
                     handleAddMember();
-                  } else if (e.key === 'Escape') {
-                    setShowAddMemberModal(false);
-                    setNewMemberName('');
                   }
                 }}
-                autoFocus
                 style={{
                   fontSize: '1rem',
                   padding: 'var(--spacing-md)',
                 }}
+                required
               />
             </div>
 
@@ -375,6 +408,7 @@ export function NewMission() {
                 onClick={() => {
                   setShowAddMemberModal(false);
                   setNewMemberName('');
+                  setNewMemberEmail('');
                 }}
                 style={{
                   padding: 'var(--spacing-sm) var(--spacing-lg)',
@@ -386,7 +420,7 @@ export function NewMission() {
               <button
                 className="btn btn-primary"
                 onClick={handleAddMember}
-                disabled={!newMemberName.trim()}
+                disabled={!newMemberName.trim() || !newMemberEmail.trim()}
                 style={{
                   padding: 'var(--spacing-sm) var(--spacing-lg)',
                   fontSize: '0.875rem',

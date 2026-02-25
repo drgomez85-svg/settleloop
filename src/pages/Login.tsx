@@ -70,7 +70,7 @@ export function Login() {
             🏦
           </div>
           <h1 style={{ fontSize: '1.75rem', fontWeight: '700', marginBottom: 'var(--spacing-xs)' }}>
-            Simplii Financial
+            Easy Financial
           </h1>
           <p style={{ fontSize: '0.875rem', color: 'var(--color-text-light)' }}>
             Sign in to your account

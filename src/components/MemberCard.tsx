@@ -5,10 +5,11 @@ interface MemberCardProps {
   member: Member;
   onEdit?: (member: Member) => void;
   onRemove?: (memberId: string) => void;
+  onRemind?: (memberId: string) => void;
   showBalance?: boolean;
 }
 
-export function MemberCard({ member, onEdit, onRemove, showBalance = true }: MemberCardProps) {
+export function MemberCard({ member, onEdit, onRemove, onRemind, showBalance = true }: MemberCardProps) {
   const initials = generateInitials(member.name);
   const color = generateColor(member.name);
   const isPositive = member.balance > 0.01;
@@ -52,8 +53,18 @@ export function MemberCard({ member, onEdit, onRemove, showBalance = true }: Mem
           </div>
         )}
       </div>
-      {(onEdit || onRemove) && (
+      {(onEdit || onRemove || onRemind) && (
         <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+          {onRemind && member.email && (member.balance < -0.01 || member.balance > 0.01) && (
+            <button
+              className="btn btn-secondary"
+              style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', fontSize: '0.875rem' }}
+              onClick={() => onRemind(member.id)}
+              title={`Send reminder to ${member.email}`}
+            >
+              📧 Remind
+            </button>
+          )}
           {onEdit && (
             <button
               className="btn btn-secondary"

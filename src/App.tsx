@@ -10,6 +10,7 @@ import { PayBill } from './pages/PayBill';
 import { AccountDetail } from './pages/AccountDetail';
 import { Login } from './pages/Login';
 import { RecurringExpenses } from './pages/RecurringExpenses';
+import { SharedLedgerView } from './pages/SharedLedgerView';
 import { useAuthStore } from './store/authStore';
 import './styles/global.css';
 
@@ -104,6 +105,10 @@ function App() {
               <RecurringExpenses />
             </ProtectedRoute>
           }
+        />
+        <Route
+          path="/share/:token"
+          element={<SharedLedgerView />}
         />
       </Routes>
     </Router>

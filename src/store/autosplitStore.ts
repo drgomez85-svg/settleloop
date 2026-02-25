@@ -258,7 +258,16 @@ export const useAutoSplitStore = create<AutoSplitStore>((set, get) => ({
     
     const recentTransactions = transactions.filter((t) => {
       const txDate = new Date(t.date);
-      return txDate >= thirtyDaysAgo && t.status === 'completed';
+      // Include all expense-related transaction types from all account types
+      // Chequing/Savings: payment, withdrawal, bill
+      // Credit: charge
+      // All accounts: any outgoing transaction that represents an expense
+      const isExpenseTransaction = 
+        t.type === 'payment' || 
+        t.type === 'charge' || 
+        t.type === 'withdrawal' || 
+        t.type === 'bill';
+      return txDate >= thirtyDaysAgo && t.status === 'completed' && isExpenseTransaction;
     });
     
     for (const transaction of recentTransactions) {
@@ -349,6 +358,7 @@ export const useAutoSplitStore = create<AutoSplitStore>((set, get) => ({
       splits, // Splits that divide the total amount
       importedFrom: transaction.id,
       autoSplitRuleId: rule.id,
+      sourceAccountId: transaction.accountId, // Track which account this expense came from
     });
     
     // Update rule with match info

@@ -8,6 +8,8 @@ export interface Member {
   id: string;
   name: string;
   balance: number; // positive = gets money, negative = owes money
+  email: string; // Required email for reminders
+  lastReminderSent?: string; // ISO date string of last reminder sent
 }
 
 export interface ExpenseSplit {
@@ -15,6 +17,15 @@ export interface ExpenseSplit {
   amount: number; // for EQUAL and AMOUNT
   percent?: number; // for PERCENT
 }
+
+export type ExpenseCategory =
+  | 'food'
+  | 'transport'
+  | 'lodging'
+  | 'entertainment'
+  | 'groceries'
+  | 'reimbursement'
+  | 'other';
 
 export interface Expense {
   id: string;
@@ -24,8 +35,11 @@ export interface Expense {
   splitType: SplitType;
   splits: ExpenseSplit[];
   createdAt: string;
+   // Optional high-level category for UI grouping/icons
+  category?: ExpenseCategory;
   importedFrom?: string; // transactionId if imported from AutoSplit
   autoSplitRuleId?: string; // ruleId that created this expense
+  sourceAccountId?: string; // accountId where the expense originated (for imported expenses)
 }
 
 export interface Settlement {
@@ -46,6 +60,8 @@ export interface Mission {
   settlements: Settlement[];
   status: MissionStatus;
   settledAt?: string;
+  shareToken?: string; // Unique token for sharing (read-only access)
+  settlementInitiatedAt?: string; // ISO date string when settlement flow was started
 }
 
 export interface SettlementSummary {

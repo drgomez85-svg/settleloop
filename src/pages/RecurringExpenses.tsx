@@ -343,10 +343,10 @@ export function RecurringExpenses() {
           {activeMissions.length === 0 ? (
             <div>
               <p style={{ color: 'var(--color-text-light)', marginBottom: 'var(--spacing-md)' }}>
-                You need to create a Shared Ledger first
+                You need to create a Shared Group first
               </p>
               <button className="btn btn-primary" onClick={() => navigate('/mission/new')}>
-                Create Shared Ledger
+                Create Shared Group
               </button>
             </div>
           ) : (

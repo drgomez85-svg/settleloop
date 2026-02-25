@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Expense, Member, SplitType } from '../types';
+import { Expense, ExpenseCategory, Member, SplitType } from '../types';
 import { createDefaultSplits, validateExpense } from '../utils/expenseValidator';
 
 interface ExpenseFormProps {
@@ -20,19 +20,64 @@ export function ExpenseForm({ members, expense, onSave, onCancel }: ExpenseFormP
   const [splits, setSplits] = useState(expense?.splits || createDefaultSplits(selectedMembers, splitType, parseFloat(amount) || 0));
   const [error, setError] = useState<string>('');
 
+  const CATEGORY_OPTIONS: { id: ExpenseCategory; label: string; icon: string }[] = [
+    { id: 'food', label: 'Food & Drinks', icon: '🍔' },
+    { id: 'groceries', label: 'Groceries', icon: '🛒' },
+    { id: 'transport', label: 'Transport', icon: '🚕' },
+    { id: 'lodging', label: 'Lodging', icon: '🏨' },
+    { id: 'entertainment', label: 'Entertainment', icon: '🎟️' },
+    { id: 'reimbursement', label: 'Reimbursement', icon: '💸' },
+    { id: 'other', label: 'Other', icon: '🧾' },
+  ];
+
+  const [category, setCategory] = useState<ExpenseCategory>(expense?.category || 'other');
+
   useEffect(() => {
     if (members.length > 0 && !paidBy) {
       setPaidBy(members[0].id);
     }
   }, [members, paidBy]);
 
+  // Recalculate splits when splitType or selectedMembers changes
+  // For EQUAL and PERCENT, always recalculate
+  // For AMOUNT, preserve existing amounts but add/remove members
   useEffect(() => {
     const numAmount = parseFloat(amount) || 0;
-    if (selectedMembers.length > 0) {
+    if (selectedMembers.length === 0) {
+      setSplits([]);
+      return;
+    }
+
+    if (splitType === 'EQUAL' || splitType === 'PERCENT') {
+      // Always recalculate for EQUAL and PERCENT
+      const newSplits = createDefaultSplits(selectedMembers, splitType, numAmount);
+      setSplits(newSplits);
+    } else if (splitType === 'AMOUNT') {
+      // For AMOUNT, preserve existing amounts but sync with selectedMembers
+      // Use functional update to access current splits state
+      setSplits(currentSplits => {
+        const existingSplits = currentSplits.filter(s => selectedMembers.includes(s.memberId));
+        const existingMemberIds = new Set(existingSplits.map(s => s.memberId));
+        const newMemberIds = selectedMembers.filter(id => !existingMemberIds.has(id));
+        
+        // Add new members with 0 amount, keep existing amounts for others
+        return [
+          ...existingSplits,
+          ...newMemberIds.map(id => ({ memberId: id, amount: 0 }))
+        ];
+      });
+    }
+  }, [splitType, selectedMembers]);
+
+  // Recalculate EQUAL and PERCENT splits when amount changes
+  // AMOUNT splits preserve user input when amount changes
+  useEffect(() => {
+    const numAmount = parseFloat(amount) || 0;
+    if (selectedMembers.length > 0 && (splitType === 'EQUAL' || splitType === 'PERCENT')) {
       const newSplits = createDefaultSplits(selectedMembers, splitType, numAmount);
       setSplits(newSplits);
     }
-  }, [splitType, selectedMembers, amount]);
+  }, [amount, splitType, selectedMembers]);
 
   const handleMemberToggle = (memberId: string) => {
     if (selectedMembers.includes(memberId)) {
@@ -85,6 +130,7 @@ export function ExpenseForm({ members, expense, onSave, onCancel }: ExpenseFormP
       paidBy,
       splitType,
       splits: splits.filter((s) => selectedMembers.includes(s.memberId)),
+      category,
     };
 
     const validation = validateExpense({ ...expenseData, id: '', createdAt: '' });
@@ -123,17 +169,35 @@ export function ExpenseForm({ members, expense, onSave, onCancel }: ExpenseFormP
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
-        <div>
-          <label style={{ display: 'block', marginBottom: 'var(--spacing-xs)', fontWeight: '500' }}>
-            Title
-          </label>
-          <input
-            className="input"
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g., Dinner, Gas, Groceries"
-          />
+        <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
+          <div style={{ flex: 2 }}>
+            <label style={{ display: 'block', marginBottom: 'var(--spacing-xs)', fontWeight: '500' }}>
+              Title
+            </label>
+            <input
+              className="input"
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g., Dinner, Gas, Groceries"
+            />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: 'block', marginBottom: 'var(--spacing-xs)', fontWeight: '500' }}>
+              Category
+            </label>
+            <select
+              className="input"
+              value={category}
+              onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
+            >
+              {CATEGORY_OPTIONS.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.icon} {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div>

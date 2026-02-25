@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Mission, Member, Expense, Settlement } from '../types';
 import { calculateBalances } from '../utils/balanceEngine';
+import { useNotificationStore } from './notificationStore';
 
 // Simple ID generator
 function generateId(): string {
@@ -19,8 +20,9 @@ interface MissionStore {
   setCurrentMission: (id: string | null) => void;
   
   // Member management
-  addMember: (missionId: string, name: string) => void;
+  addMember: (missionId: string, name: string, email: string) => void;
   updateMember: (missionId: string, memberId: string, updates: Partial<Member>) => void;
+  sendReminder: (missionId: string, memberId: string) => void;
   removeMember: (missionId: string, memberId: string) => void;
   
   // Expense management
@@ -44,6 +46,8 @@ interface MissionStore {
   // Getters
   getCurrentMission: () => Mission | null;
   getMission: (id: string) => Mission | undefined;
+  getMissionByShareToken: (shareToken: string) => Mission | undefined;
+  generateShareToken: (missionId: string) => string;
 }
 
 export const useMissionStore = create<MissionStore>((set, get) => ({
@@ -53,6 +57,7 @@ export const useMissionStore = create<MissionStore>((set, get) => ({
 
   createMission: (title) => {
     const id = generateId();
+    const shareToken = `${Date.now()}-${Math.random().toString(36).substr(2, 16)}`;
     const newMission: Mission = {
       id,
       title,
@@ -60,6 +65,7 @@ export const useMissionStore = create<MissionStore>((set, get) => ({
       expenses: [],
       settlements: [],
       status: 'active',
+      shareToken,
     };
     set((state) => ({
       missions: [...state.missions, newMission],
@@ -87,11 +93,12 @@ export const useMissionStore = create<MissionStore>((set, get) => ({
     set({ currentMissionId: id });
   },
 
-  addMember: (missionId, name) => {
+  addMember: (missionId, name, email) => {
     const newMember: Member = {
       id: generateId(),
       name,
       balance: 0,
+      email: email,
     };
     set((state) => ({
       missions: state.missions.map((m) =>
@@ -264,6 +271,18 @@ export const useMissionStore = create<MissionStore>((set, get) => ({
       settledAt: new Date().toISOString(),
       members: zeroedMembers,
     });
+    
+    // Add notification for settlement completion
+    import('./notificationStore').then(({ useNotificationStore }) => {
+      const mission = get().getMission(missionId);
+      if (mission) {
+        useNotificationStore.getState().addNotification({
+          type: 'info',
+          title: 'Settlement Complete',
+          message: `All payments for "${mission.title}" have been settled successfully.`,
+        });
+      }
+    });
   },
 
   reopenMission: (missionId) => {
@@ -291,5 +310,54 @@ export const useMissionStore = create<MissionStore>((set, get) => ({
 
   getMission: (id) => {
     return get().missions.find((m) => m.id === id);
+  },
+
+  getMissionByShareToken: (shareToken) => {
+    return get().missions.find((m) => m.shareToken === shareToken);
+  },
+
+  sendReminder: (missionId, memberId) => {
+    const mission = get().getMission(missionId);
+    if (!mission) return;
+    
+    const member = mission.members.find(m => m.id === memberId);
+    if (!member || !member.email) return;
+    
+    // Update last reminder sent timestamp
+    get().updateMember(missionId, memberId, {
+      lastReminderSent: new Date().toISOString(),
+    });
+    
+    // In a real app, this would send an email via backend from the bank
+    // For demo, we'll open the user's email client as if the bank is sending the reminder
+    const subject = encodeURIComponent(`Reminder: Settlement for ${mission.title}`);
+    const body = encodeURIComponent(
+      `Hi ${member.name},\n\n` +
+      `This is a gentle reminder that you have an outstanding balance in the shared group "${mission.title}".\n\n` +
+      `Balance: ${member.balance > 0 ? `You are owed $${member.balance.toFixed(2)}` : `You owe $${Math.abs(member.balance).toFixed(2)}`}\n\n` +
+      `Please settle up when convenient.\n\n` +
+      `Thank you!`
+    );
+    if (typeof window !== 'undefined') {
+      window.location.href = `mailto:${member.email}?subject=${subject}&body=${body}`;
+      
+      // Let the current user know a reminder was sent (bank-style)
+      try {
+        useNotificationStore.getState().addNotification({
+          type: 'info',
+          title: 'Settlement Reminder Sent',
+          message: `We just reminded ${member.name} about this settlement in "${mission.title}". The reminder is sent from the bank, not your personal email.`,
+        });
+      } catch {
+        // Fallback if notifications are unavailable
+        alert(`We just reminded ${member.name} about this settlement.`);
+      }
+    }
+  },
+
+  generateShareToken: (missionId) => {
+    const shareToken = `${Date.now()}-${Math.random().toString(36).substr(2, 16)}`;
+    get().updateMission(missionId, { shareToken });
+    return shareToken;
   },
 }));

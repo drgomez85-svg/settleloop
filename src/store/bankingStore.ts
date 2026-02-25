@@ -42,7 +42,7 @@ const initialAccounts: Account[] = [
     type: 'chequing',
     name: 'Chequing',
     accountNumber: '4291',
-    balance: 4832.56,
+    balance: 3032.56, // Updated to reflect February rent payment
     currency: 'CAD',
   },
   {
@@ -85,6 +85,17 @@ const initialAccounts: Account[] = [
 
 // Initial transactions
 const initialTransactions: Transaction[] = [
+  {
+    id: 't-rent-jan',
+    accountId: 'chequing-1',
+    type: 'payment',
+    amount: -1800.00,
+    description: 'RENT PAYMENT',
+    category: 'Housing',
+    date: new Date('2026-01-01').toISOString(),
+    status: 'completed',
+    biller: 'Landlord',
+  },
   {
     id: 't1',
     accountId: 'chequing-1',
